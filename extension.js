@@ -16,6 +16,9 @@ const St = imports.gi.St;
 const Main = imports.ui.main;
 const PopupMenu = imports.ui.popupMenu;
 
+const DEBUG = false;
+const NO_SUBMENU_HACK = true;
+
 
 let advMixer;
 
@@ -93,8 +96,10 @@ AdvMixer.prototype = {
     let title = this._mixer._volumeMenu.firstMenuItem.firstMenuItem;
     title.destroy();
 
-    this._mixer._volumeMenu.firstMenuItem.addMenuItem(this._outputMenu, 0);
-    this._outputMenu.actor.show();
+    if (!NO_SUBMENU_HACK) {
+      this._mixer._volumeMenu.firstMenuItem.addMenuItem(this._outputMenu, 0);
+      this._outputMenu.actor.show();
+    }
 
     // Add streams
     let streams = this._control.get_streams();
@@ -121,10 +126,19 @@ AdvMixer.prototype = {
     }
 
     let stream = control.lookup_stream_id(id);
+    if (DEBUG) {
+      log('streamAdded: id: ' + id + ' ' + stream);
+    }
 
     if (stream["is-event-stream"]) {
+      if (DEBUG) {
+        log('streamAdded: is-event-stream');
+      }
       // Do nothing
     } else if (stream instanceof Gvc.MixerSinkInput) {
+      if (DEBUG) {
+        log('streamAdded: MixerSinkInput');
+      }
       let slider = new PopupMenu.PopupSliderMenuItem(
         stream.volume / this._control.get_vol_max_norm()
       );
@@ -168,6 +182,9 @@ AdvMixer.prototype = {
       this._mixer.menu.addMenuItem(this._items[id]["slider"], 2);
       this._mixer.menu.addMenuItem(this._items[id]["title"], 2);
     } else if (stream instanceof Gvc.MixerSink) {
+      if (DEBUG) {
+        log('streamAdded: MixerSink');
+      }
       let output = new PopupMenu.PopupMenuItem(stream.description);
 
       output.connect(
@@ -175,13 +192,20 @@ AdvMixer.prototype = {
         function (item, event) { control.set_default_sink(stream); }
       );
 
-      this._outputMenu.menu.addMenuItem(output);
+      if (NO_SUBMENU_HACK) {
+        this._mixer._volumeMenu.firstMenuItem.addMenuItem(output, 0);
+      } else {
+        this._outputMenu.menu.addMenuItem(output);
+      }
 
       this._outputs[id] = output;
     }
   },
 
   _streamRemoved: function(control, id) {
+    if (DEBUG) {
+      log('streamRemoved: id: ' + id);
+    }
     if (id in this._items) {
       this._items[id]["slider"].destroy();
       this._items[id]["title"].destroy();
