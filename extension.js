@@ -18,6 +18,7 @@ const PopupMenu = imports.ui.popupMenu;
 
 const DEBUG = false;
 const NO_SUBMENU_HACK = true;
+const STREAM_DESCRIPTION_MAXLEN = 30;
 
 
 let advMixer;
@@ -142,8 +143,12 @@ AdvMixer.prototype = {
       let slider = new PopupMenu.PopupSliderMenuItem(
         stream.volume / this._control.get_vol_max_norm()
       );
+      let t = stream.description || stream.name;
+      if (t.length > STREAM_DESCRIPTION_MAXLEN) {
+        t = t.slice(0, STREAM_DESCRIPTION_MAXLEN);
+      }
       let title = new AdvPopupSwitchMenuItem(
-        stream.name || stream.description,
+        t,
         !stream.is_muted,
         stream.get_gicon(),
         {activate: false}
@@ -185,7 +190,11 @@ AdvMixer.prototype = {
       if (DEBUG) {
         log('streamAdded: MixerSink');
       }
-      let output = new PopupMenu.PopupMenuItem(stream.description);
+      let t = stream.description || stream.name;
+      if (t.length > STREAM_DESCRIPTION_MAXLEN) {
+        t = t.slice(0, STREAM_DESCRIPTION_MAXLEN);
+      }
+      let output = new PopupMenu.PopupMenuItem(t);
 
       output.connect(
         "activate",
