@@ -15,12 +15,45 @@ const St = imports.gi.St;
 
 const Main = imports.ui.main;
 const PopupMenu = imports.ui.popupMenu;
+const Slider = imports.ui.slider;
 
+// USE_OUTPUT_SUBMENU: place audio output choices in a submenu instead of at the top level.
+// Costs one more click per output switch.
+const USE_OUTPUT_SUBMENU = false;
 const DEBUG = false;
-const NO_SUBMENU_HACK = true;
 
+let panelVolumeMixerHasTitle = true;
+let actorsHaveUnderscoreMethodNames = false;
 
 let advMixer;
+
+
+const _MyPopupSliderMenuItem = new Lang.Class({
+    Name: 'PopupSliderMenuItem',
+    Extends: PopupMenu.PopupBaseMenuItem,
+
+  _init: function(value) {
+    //PopupMenu.PopupBaseMenuItem.prototype._init.call(this,{ activate: false });
+    this.parent({ activate: false });
+    this._slider = new Slider.Slider(value);
+    this._slider.connect('value-changed', Lang.bind(this, function(actor, value) {
+        this.emit('value-changed', value);
+    }));
+    this.actor.add(this._slider.actor, { expand: true });
+  },
+
+  setValue: function(value) {
+    this._slider.setValue(value);
+  },
+
+  get value() {
+    return this._slider.value;
+  },
+
+  scroll: function (event) {
+    this._slider.scroll(event);
+  }
+});
 
 
 function AdvPopupSwitchMenuItem() {
@@ -45,8 +78,13 @@ AdvPopupSwitchMenuItem.prototype = {
     });
 
     // Rebuild switch
-    this.removeActor(this._statusBin);
-    this.removeActor(this.label)
+    if (actorsHaveUnderscoreMethodNames) {      
+      this.actor.remove_actor(this._statusBin);
+      this.actor.remove_actor(this.label);
+    } else {
+      this.removeActor(this._statusBin);
+      this.removeActor(this.label);
+    }
 
     // Horizontal box
     let labelBox = new St.BoxLayout({vertical: false});
@@ -58,7 +96,11 @@ AdvPopupSwitchMenuItem.prototype = {
     labelBox.add(this._statusBin,
                  {expand: true, x_fill: true, x_align: St.Align.END});
             
-    this.addActor(labelBox, {span: -1, expand: true });
+    if (actorsHaveUnderscoreMethodNames) {
+      this.actor.add_actor(labelBox, {span: -1, expand: true });
+    } else {
+      this.addActor(labelBox, {span: -1, expand: true });
+    }
   }
 }
 
@@ -93,12 +135,17 @@ AdvMixer.prototype = {
     );
 
     // Change Volume title
-    let title = this._mixer._volumeMenu.firstMenuItem.firstMenuItem;
-    title.destroy();
+    if (panelVolumeMixerHasTitle) {
+      let title = this._mixer._volumeMenu.firstMenuItem.firstMenuItem;
+      title.destroy();
+    }
 
-    if (!NO_SUBMENU_HACK) {
-      this._mixer._volumeMenu.firstMenuItem.addMenuItem(this._outputMenu, 0);
-      this._outputMenu.actor.show();
+    if (USE_OUTPUT_SUBMENU) {
+      if (this._mixer._volumeMenu.firstMenuItem['addMenuItem']) {
+        this._mixer._volumeMenu.firstMenuItem.addMenuItem(this._outputMenu, 0);
+      } else {
+        this._mixer._volumeMenu.addMenuItem(this._outputMenu, 0);
+      }
     }
 
     // Add streams
@@ -139,7 +186,7 @@ AdvMixer.prototype = {
       if (DEBUG) {
         log('streamAdded: MixerSinkInput');
       }
-      let slider = new PopupMenu.PopupSliderMenuItem(
+      let slider = new _MyPopupSliderMenuItem(
         stream.volume / this._control.get_vol_max_norm()
       );
       let title = new AdvPopupSwitchMenuItem(
@@ -192,10 +239,16 @@ AdvMixer.prototype = {
         function (item, event) { control.set_default_sink(stream); }
       );
 
-      if (NO_SUBMENU_HACK) {
-        this._mixer._volumeMenu.firstMenuItem.addMenuItem(output, 0);
-      } else {
+      if (USE_OUTPUT_SUBMENU) {
         this._outputMenu.menu.addMenuItem(output);
+      } else {
+        if (this._mixer._volumeMenu.firstMenuItem['addMenuItem']) {
+          // 3.8
+          this._mixer._volumeMenu.firstMenuItem.addMenuItem(output, 0);
+        } else {
+          // 3.6, 3.10
+          this._mixer._volumeMenu.addMenuItem(output, 0);
+        }
       }
 
       this._outputs[id] = output;
@@ -220,7 +273,8 @@ AdvMixer.prototype = {
 
   _defaultSinkChanged: function(control, id) {
     for (let output in this._outputs) {
-      this._outputs[output].setShowDot(output == id);
+      let check = (output == id) ? 2 : 0;
+      this._outputs[output].setOrnament(check);
     }
   },
 
@@ -300,8 +354,14 @@ function init() {
 
 
 function enable() {
-  if (Main.panel.statusArea['volume'] && !advMixer) {
-    advMixer = new AdvMixer(Main.panel.statusArea["volume"]);
+  let m = Main.panel.statusArea['volume'];
+  if (m === undefined) {
+    m = Main.panel.statusArea['aggregateMenu']._volume;
+    panelVolumeMixerHasTitle = false;
+    actorsHaveUnderscoreMethodNames = true;
+  }
+  if (m && !advMixer) {
+    advMixer = new AdvMixer(m);
   }
 }
 
