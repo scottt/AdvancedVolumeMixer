@@ -122,9 +122,13 @@ AdvMixer.prototype = {
     this._separator = new PopupMenu.PopupSeparatorMenuItem();
     this._items = {};
     this._outputs = {};
-    this._outputMenu = new PopupMenu.PopupSubMenuMenuItem(_("Volume"));
+    this._outputMenuItemDest = null;
 
-    this._mixer.menu.addMenuItem(this._separator, 1);
+    if (USE_OUTPUT_SUBMENU) {
+      this._outputMenu = new PopupMenu.PopupSubMenuMenuItem(_("Volume"));
+    }
+
+    this._mixer.menu.addMenuItem(this._separator);
 
     this._streamAddedId = this._control.connect(
       "stream-added",
@@ -139,9 +143,14 @@ AdvMixer.prototype = {
       Lang.bind(this, this._defaultSinkChanged)
     );
 
-    // Change Volume title
     if (panelVolumeMixerHasTitle) {
-      let title = this._mixer._volumeMenu.firstMenuItem.firstMenuItem;
+      // Change Volume title
+      let title;
+      if (this._mixer._volumeMenu.firstMenuItem['addMenuItem']) {
+        title = this._mixer._volumeMenu.firstMenuItem.firstMenuItem;
+      } else {
+        title = this._mixer._volumeMenu.firstMenuItem;
+      }
       title.destroy();
     }
 
@@ -150,6 +159,13 @@ AdvMixer.prototype = {
         this._mixer._volumeMenu.firstMenuItem.addMenuItem(this._outputMenu, 0);
       } else {
         this._mixer._volumeMenu.addMenuItem(this._outputMenu, 0);
+      }
+      this._outputMenuItemDest = this._outputMenu;
+    } else {
+      if (this._mixer._volumeMenu.firstMenuItem['addMenuItem']) {
+        this._outputMenuItemDest = this._mixer._volumeMenu.firstMenuItem;
+      } else {
+        this._outputMenuItemDest = this._mixer._volumeMenu;
       }
     }
 
@@ -252,18 +268,7 @@ AdvMixer.prototype = {
         function (item, event) { control.set_default_sink(stream); }
       );
 
-      if (USE_OUTPUT_SUBMENU) {
-        this._outputMenu.menu.addMenuItem(output);
-      } else {
-        if (this._mixer._volumeMenu.firstMenuItem['addMenuItem']) {
-          // 3.8
-          this._mixer._volumeMenu.firstMenuItem.addMenuItem(output, 0);
-        } else {
-          // 3.6, 3.10
-          this._mixer._volumeMenu.addMenuItem(output, 0);
-        }
-      }
-
+      this._outputMenuItemDest.addMenuItem(output, 0);
       this._outputs[id] = output;
     }
   },
@@ -335,13 +340,27 @@ AdvMixer.prototype = {
     this._separator.destroy();
     delete this._separator;
 
-    // Restore Volume label
-    this._outputMenu.destroy();
-    delete this._outputMenu;
+    for (let id in this._outputs) {
+      this._outputs[id].destroy();
+    }
 
-    let title = new PopupMenu.PopupMenuItem(_("Volume"), {reactive: false });
-    this._mixer._volumeMenu.firstMenuItem.addMenuItem(title, 0);
-    title.actor.show();
+    // Restore Volume label
+    if (USE_OUTPUT_SUBMENU) {
+      this._outputMenu.destroy();
+      delete this._outputMenu;
+    }
+
+    if (panelVolumeMixerHasTitle) {
+      let title = new PopupMenu.PopupMenuItem(_("Volume"), {reactive: false });
+      let m;
+      if (this._mixer._volumeMenu.firstMenuItem['addMenuItem']) {
+          m = this._mixer._volumeMenu.firstMenuItem;
+      } else {
+          m = this._mixer._volumeMenu;
+      }
+      m.addMenuItem(title, 0);
+      title.actor.show();
+    }
 
     // remove application streams
     for (let id in this._items) {
