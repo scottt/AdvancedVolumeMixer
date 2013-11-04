@@ -17,7 +17,10 @@ const Main = imports.ui.main;
 const PopupMenu = imports.ui.popupMenu;
 const Slider = imports.ui.slider;
 
-const STREAM_DESCRIPTION_MAXLEN = 30;
+const STREAM_DESCRIPTION_MAXLEN = 40;
+/* 'Logitech Wireless Heatset Analog Stereo'.length == 39
+ * There're USB wireless headsets with even longer descriptions.
+ */
 
 // USE_OUTPUT_SUBMENU: place audio output choices in a submenu instead of at the top level.
 // Costs one more click per output switch.
